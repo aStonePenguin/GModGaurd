@@ -9,7 +9,6 @@ namespace GModGaurd
 {
     class Program
     {
-        private static List<Server> Servers;
         private static ManualResetEvent ResetEvent = new ManualResetEvent(false);
 
         static void Main(string[] args)
@@ -17,9 +16,7 @@ namespace GModGaurd
             if (!File.Exists("Servers.json"))
                 File.WriteAllText("Servers.json", "[]");
     
-            Servers = JsonConvert.DeserializeObject<List<Server>>(File.ReadAllText("Servers.json"));
-
-            foreach (Server v in Servers)
+            foreach (Server v in JsonConvert.DeserializeObject<List<Server>>(File.ReadAllText("Servers.json")))
                 v.Init();
 
             ResetEvent.WaitOne();
