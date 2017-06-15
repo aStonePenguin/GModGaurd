@@ -11,39 +11,33 @@ namespace GModGaurd.Classes
     class A2SCache
     {
         public IPAddress Hostname;
-        public int Port = 27015;
+        public int Port;
         public IPEndPoint EndPoint;
 
-        public int RefreshRate = 5;
+        public int RefreshRate;
 
         public DateTime LastCache;
 
         public byte[] Info;
-
-        public byte[] PlayersChallenge;
+        public byte[] Challenge;
         public byte[][] Players;
-
-        public byte[] RulesChallenge;
         public byte[][] Rules;
 
         private readonly byte[] InfoRequest = new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0x54, 0x53, 0x6F, 0x75, 0x72, 0x63, 0x65, 0x20, 0x45, 0x6E, 0x67, 0x69, 0x6E, 0x65, 0x20, 0x51, 0x75, 0x65, 0x72, 0x79, 0x00 };
         private readonly byte InfoResponseHeader = 0x49;
+
+        private readonly byte[] ChallengeRequest = new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0x55, 0xFF, 0xFF, 0xFF, 0xFF }; // GetChallenge returns the same challenge for all types so we'll just request a player challenge and cache it
         private readonly byte ChallengeResponseHeader = 0x41;
 
-        private readonly byte[] PlayersChallengeRequest = new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0x55, 0xFF, 0xFF, 0xFF, 0xFF };
         private readonly byte[] PlayersRequest = new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0x55 };
         private readonly byte PlayersResponseHeader = 0x44;
 
-        private readonly byte[] RulesChallengeRequest = new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0x56, 0xFF, 0xFF, 0xFF, 0xFF };
         private readonly byte[] RulesRequest = new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0x56 };
         private readonly byte RulesResponseHeader = 0x45;
 
-        private readonly byte[] Challenge = new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0x41 }; // how do we want to do this one HMM
 
         public A2SCache()
-        {
-            new Thread(Poll).Start();
-        }
+            => new Thread(Poll).Start();
 
         public async Task Refresh()
         {
@@ -56,13 +50,21 @@ namespace GModGaurd.Classes
             {
                 try
                 {
-                    var finished = await Task.WhenAny(_Refresh(client), Task.Delay(1000));
-                    if (!finished.IsCompleted)
+                    Task task1 = _Refresh(client);
+                    Task task2 = Task.Delay(1000);
+                    Task finished = await Task.WhenAny(task1, task2);
+
+                    if (!task1.IsCompleted)
                         throw new Exception("A2SCache.Refresh timed out!");
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
-                    Console.WriteLine("Failed to cache!");
+                    Info = null;
+                    Players = null;
+                    Rules = null;
+                    Challenge = null;
+
+                    Console.WriteLine("Failed to cache: " + ex.Message);
                     client.Dispose();
                 }
             }
@@ -72,6 +74,9 @@ namespace GModGaurd.Classes
         {
             Info = await RequestInfo(client);
             Console.WriteLine("RequestInfo");
+
+            Challenge = await RequestChallenge(client);
+            Console.WriteLine("RequestChallenge");
 
             Players = await RequestPlayers(client);
             Console.WriteLine("RequestPlayer");
@@ -86,8 +91,12 @@ namespace GModGaurd.Classes
         {
             UdpReceiveResult result = await client.ReceiveAsync();
 
+            //foreach (byte v in result.Buffer)
+            //    Console.WriteLine(v);
+#if DEBUG
             Console.WriteLine(Encoding.UTF8.GetString(result.Buffer));
-            
+#endif    
+
             //if (!Util.IsValidSourcePacket(result.Buffer) || result.Buffer[4] != header)
             //    throw new Exception("Invalid source packet!");
 
@@ -120,52 +129,41 @@ namespace GModGaurd.Classes
             return await WaitForResponse(client, InfoResponseHeader);
         }
 
-        private async Task<byte[]> RequestPlayersChallenge(UdpClient client)
+        private async Task<byte[]> RequestChallenge(UdpClient client)
         {
-            await client.SendAsync(PlayersChallengeRequest, PlayersChallengeRequest.Length, EndPoint);
-            byte[] response = new byte[4];
-            Array.Copy(await WaitForResponse(client, ChallengeResponseHeader), 5, response, 0, 4);
-            return response;
+            await client.SendAsync(ChallengeRequest, ChallengeRequest.Length, EndPoint);
+            return await WaitForResponse(client, ChallengeResponseHeader);
         }
 
         private async Task<byte[][]> RequestPlayers(UdpClient client)
         {
-            PlayersChallenge = await RequestPlayersChallenge(client);
-
-            byte[] request = new byte[PlayersChallenge.Length + PlayersRequest.Length];
+            byte[] request = new byte[PlayersRequest.Length + 4];
             Array.Copy(PlayersRequest, 0, request, 0, PlayersRequest.Length);
-            Array.Copy(PlayersChallenge, 0, request, PlayersRequest.Length, PlayersChallenge.Length);
+            Array.Copy(new byte[] { Challenge[5], Challenge[6], Challenge[7], Challenge[8] }, 0, request, RulesRequest.Length, 4);
+
             await client.SendAsync(request, request.Length, EndPoint);
 
             return await WaitForMultiPacketResponse(client, PlayersResponseHeader);  
         }
 
-        private async Task<byte[]> RequestRulesChallenge(UdpClient client)
-        {
-            await client.SendAsync(RulesChallengeRequest, RulesChallengeRequest.Length, EndPoint);
-            byte[] response = new byte[4];
-            Array.Copy(await WaitForResponse(client, ChallengeResponseHeader), 5, response, 0, 4);
-            return response;
-        }
-
-        private async Task<byte[][]> RequestRules(UdpClient client)
-        {
-            RulesChallenge = await RequestRulesChallenge(client);
-
-            byte[] request = new byte[RulesChallenge.Length + RulesRequest.Length];
-
+       private async Task<byte[][]> RequestRules(UdpClient client)
+       {
+            byte[] request = new byte[RulesRequest.Length + 4];
             Array.Copy(RulesRequest, 0, request, 0, RulesRequest.Length);
-            Array.Copy(RulesChallenge, 0, request, RulesRequest.Length, RulesChallenge.Length);
+            Array.Copy(new byte[] { Challenge[5], Challenge[6], Challenge[7], Challenge[8] }, 0, request, RulesRequest.Length, 4);
 
             await client.SendAsync(request, request.Length, EndPoint);
 
             return await WaitForMultiPacketResponse(client, RulesResponseHeader);
-        }
+       }
 
         private async void Poll()
         {
-            Thread.Sleep(RefreshRate * 1000);
-            await Refresh();
+            while (true)
+            {
+                Thread.Sleep(RefreshRate * 1000);
+                await Refresh();
+            }
         }
     }
 }

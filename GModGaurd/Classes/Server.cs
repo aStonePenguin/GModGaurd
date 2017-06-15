@@ -26,6 +26,9 @@ namespace GModGaurd.Classes
         [JsonProperty]
         public int BindPort = 27010;
 
+        [JsonProperty]
+        public int RefreshRate = 5;
+
         private IPEndPoint ServerEndpoint;
         private UdpClient ServerSocket = new UdpClient();
 
@@ -37,7 +40,8 @@ namespace GModGaurd.Classes
             Cache = new A2SCache()
             {
                 Hostname = _ServerIP,
-                Port = ServerPort
+                Port = ServerPort,
+                RefreshRate = RefreshRate
             };
 
             Cache.Refresh().Wait();
@@ -54,64 +58,67 @@ namespace GModGaurd.Classes
                 HandlePacket(await ServerSocket.ReceiveAsync());
         }
 
-        private async void A2S_Info(UdpReceiveResult result)
+        private async Task A2S_Info(UdpReceiveResult result)
         {
             Console.WriteLine("A2S_INFO");
             if (Cache.Info != null)
                 await ServerSocket.SendAsync(Cache.Info, Cache.Info.Length, result.RemoteEndPoint);
         }
 
-        private async void A2S_Player(UdpReceiveResult result)
+        private async Task A2S_GetChallenge(UdpReceiveResult result)
         {
-            Console.WriteLine("A2S_PLAYER");
-            if (Cache.Players != null)
-                foreach (byte[] v in Cache.Players)
-                    await ServerSocket.SendAsync(v, v.Length, result.RemoteEndPoint);
-                    
+            Console.WriteLine("A2S_GETCHALLENGE");
+            if (Cache.Challenge != null)
+                await ServerSocket.SendAsync(Cache.Challenge, Cache.Challenge.Length, result.RemoteEndPoint);
         }
 
-        private async void A2S_Rules(UdpReceiveResult result)
+        private async Task A2S_Players(UdpReceiveResult result)
+        {
+            Console.WriteLine("A2S_PLAYER");
+            if (Cache.Players != null && Cache.Challenge != null && result.Buffer[5] == Cache.Challenge[5] && result.Buffer[6] == Cache.Challenge[6] && result.Buffer[7] == Cache.Challenge[7] && result.Buffer[8] == Cache.Challenge[8])
+                foreach (byte[] v in Cache.Players)
+                    await ServerSocket.SendAsync(v, v.Length, result.RemoteEndPoint);
+        }
+
+        private async Task A2S_Rules(UdpReceiveResult result)
         {
             Console.WriteLine("A2S_RULES");
-            if (Cache.Rules != null)
+            if (Cache.Rules != null && Cache.Challenge != null && result.Buffer[5] == Cache.Challenge[5] && result.Buffer[6] == Cache.Challenge[6] && result.Buffer[7] == Cache.Challenge[7] && result.Buffer[8] == Cache.Challenge[8])
                 foreach (byte[] v in Cache.Rules)
                     await ServerSocket.SendAsync(v, v.Length, result.RemoteEndPoint);
         }
 
-        private async void A2S_GetChallenge(UdpReceiveResult result)
-        {
-            Console.WriteLine("A2S_GETCHALLENGE");
-
-            //if (Cache.Challenge != null)
-                // await ServerSocket.SendAsync();
-        }
-
         private async void HandlePacket(UdpReceiveResult result)
         {
+#if DEBUG
             Console.WriteLine("\n-----------------------------------------------------------");
             Console.WriteLine("Packet: " + Encoding.UTF8.GetString(result.Buffer));
             Console.WriteLine("Len: " + result.Buffer.Length);
             Console.WriteLine("Source: " + result.RemoteEndPoint.Address);
-
+# endif
             if (Util.IsValidSourcePacket(result.Buffer))
             {
-                switch (result.Buffer[4])
+                //foreach (var v in result.Buffer)
+                    //Console.WriteLine(v);
+
+                if (result.Buffer.Length == 9 && ((result.Buffer[5] == 0xFF && result.Buffer[6] == 0xFF && result.Buffer[7] == 0xFF && result.Buffer[8] == 0xFF) || (result.Buffer[5] == 0x00 && result.Buffer[6] == 0x00 && result.Buffer[7] == 0x00 && result.Buffer[8] == 0x00))) // Steam sends 0's, everything else sends FF.
+                    await A2S_GetChallenge(result);
+                else
                 {
-                    case 0x54:
-                        A2S_Info(result);
-                        break;
+                    switch (result.Buffer[4])
+                    {
+                        case 0x54:
+                            await A2S_Info(result);
+                            break;
 
-                    case 0x55:
-                        A2S_Player(result);
-                        break;
+                        case 0x55:
+                            await A2S_Players(result);
+                            break;
 
-                    case 0x56:
-                        A2S_Rules(result);
-                        break;
-
-                    case 0x57:
-                        A2S_GetChallenge(result);
-                        break;
+                        case 0x56:
+                            await A2S_Rules(result);
+                            break;
+                    }
                 }
             }
         }
