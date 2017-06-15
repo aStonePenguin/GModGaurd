@@ -73,39 +73,33 @@ namespace GModGaurd.Classes
         private async Task _Refresh(UdpClient client)
         {
             Info = await RequestInfo(client);
-            Console.WriteLine("RequestInfo");
+            Console.WriteLine("A2SCache -> RequestInfo");
 
             Challenge = await RequestChallenge(client);
-            Console.WriteLine("RequestChallenge");
+            Console.WriteLine("A2SCache -> RequestChallenge");
 
             Players = await RequestPlayers(client);
-            Console.WriteLine("RequestPlayer");
+            Console.WriteLine("A2SCache -> RequestPlayer");
 
             Rules = await RequestRules(client);
-            Console.WriteLine("RequestRules");
+            Console.WriteLine("A2SCache -> RequestRules");
 
-            Console.WriteLine("Finished refresh!");
+            Console.WriteLine("A2SCache -> Finished refresh!");
         }
 
-        private async Task<byte[]> WaitForResponse(UdpClient client, byte header)
+        private async Task<byte[]> WaitForResponse(UdpClient client, byte header, bool validate = true)
         {
             UdpReceiveResult result = await client.ReceiveAsync();
 
-            //foreach (byte v in result.Buffer)
-            //    Console.WriteLine(v);
-#if DEBUG
-            Console.WriteLine(Encoding.UTF8.GetString(result.Buffer));
-#endif    
-
-            //if (!Util.IsValidSourcePacket(result.Buffer) || result.Buffer[4] != header)
-            //    throw new Exception("Invalid source packet!");
+            if ((!Util.IsValidSourcePacket(result.Buffer) || result.Buffer[4] != header) && validate)
+                throw new Exception("Invalid source packet!");
 
             return result.Buffer;
         }
 
         private async Task<byte[][]> WaitForMultiPacketResponse(UdpClient client, byte header)
         {
-            byte[] firstresp = await WaitForResponse(client, header);
+            byte[] firstresp = await WaitForResponse(client, header, false);
             byte[][] response;
 
             if (firstresp[0] == 0xFE)
@@ -113,7 +107,7 @@ namespace GModGaurd.Classes
                 int packets = Convert.ToInt32(firstresp[8]);
                 response = new byte[packets][];
                 for (int i = 1; i < packets; i++)
-                    response[i] = await WaitForResponse(client, header);
+                    response[i] = await WaitForResponse(client, header, false);
             }
             else
                 response = new byte[1][];
