@@ -1,0 +1,14 @@
+-- Install dotnet:
+https://www.microsoft.com/net/core#linuxdebian
+
+-- Edit and move Servers.json to your install dir
+
+-- Edit the user and directories in gmodgaurd.service
+-- Move gmodgaurd.service to /etc/systemd/system (if your on a system that doesnt have systemctl you'll be on your own as far as auto restaring goes)
+
+-- Enable & Start it:
+systemctl daemon-reload
+systemctl enable gmodgaurd.service
+systemctl restart gmodgaurd
+
+-- Add iptables rules in FIREWALL RULES.txt (May also want to rate limit a2s_* to start I have no idea how much cpu this will use if someone decides to try hard):

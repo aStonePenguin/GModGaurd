@@ -1,0 +1,11 @@
+
+-- Make sure to save any custom rules and clear old rules first!
+iptables-save | awk '/^[*]/ { print $1 } 
+/^:[A-Z]+ [^-]/ { print $1 " ACCEPT" ; }
+/COMMIT/ { print $0; }' | iptables-restore
+
+iptables -t nat -I PREROUTING -p udp -d "SERVER_IP_HERE" --dport SERVER_PORT_HERE -m u32 --u32 '28=0xFFFFFFFF && 33=0xFFFFFFFF' -j REDIRECT --to-port GMODGAURD_PORT_HERE
+iptables -t nat -I PREROUTING -p udp -d "SERVER_IP_HERE" --dport SERVER_PORT_HERE -m u32 --u32 '28=0xFFFFFFFF && 33=0x00000000' -j REDIRECT --to-port GMODGAURD_PORT_HERE
+iptables -t nat -I PREROUTING -p udp -d "SERVER_IP_HERE" --dport SERVER_PORT_HERE -m u32 --u32 '32=0x54536F75' -j REDIRECT --to-port GMODGAURD_PORT_HERE
+iptables -t nat -I PREROUTING -p udp -d "SERVER_IP_HERE" --dport SERVER_PORT_HERE -m u32 --u32 '32=0x55000000' -j REDIRECT --to-port GMODGAURD_PORT_HERE
+iptables -t nat -I PREROUTING -p udp -d "SERVER_IP_HERE" --dport SERVER_PORT_HERE -m u32 --u32 '32=0x56000000' -j REDIRECT --to-port GMODGAURD_PORT_HERE

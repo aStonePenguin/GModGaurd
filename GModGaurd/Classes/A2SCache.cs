@@ -75,11 +75,11 @@ namespace GModGaurd.Classes
             Info = await RequestInfo(client);
             Console.WriteLine("A2SCache -> RequestInfo");
 
-            Challenge = await RequestChallenge(client);
-            Console.WriteLine("A2SCache -> RequestChallenge");
+           Challenge = await RequestChallenge(client);
+           Console.WriteLine("A2SCache -> RequestChallenge");
 
-            Players = await RequestPlayers(client);
-            Console.WriteLine("A2SCache -> RequestPlayer");
+           Players = await RequestPlayers(client);
+           Console.WriteLine("A2SCache -> RequestPlayer");
 
             Rules = await RequestRules(client);
             Console.WriteLine("A2SCache -> RequestRules");
@@ -137,7 +137,7 @@ namespace GModGaurd.Classes
 
             await client.SendAsync(request, request.Length, EndPoint);
 
-            return await WaitForMultiPacketResponse(client, PlayersResponseHeader);  
+            return await WaitForMultiPacketResponse(client, PlayersResponseHeader);
         }
 
        private async Task<byte[][]> RequestRules(UdpClient client)

@@ -1,0 +1,15 @@
+[Unit]
+Description=GModGaurd
+
+[Service]
+User=root
+Restart=always
+RestartSec=3
+WorkingDirectory=/root/GModGaurd
+ReadWriteDirectories=/root/GModGaurd
+SyslogIdentifier=GModGaurd
+ExecStart=/usr/local/bin/dotnet /root/GModGaurd/GModGaurd.dll
+Environment=ASPNETCORE_ENVIRONMENT=Production 
+
+[Install]
+WantedBy=multi-user.target

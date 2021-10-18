@@ -1,0 +1,16 @@
+[
+	{
+		"ServerIP": "45.63.75.18",
+		"ServerPort": 27015,
+		"BindIP": "45.63.75.17", // If you use the firewall rules provided make sure this is the first ip on your dedi
+		"BindPort": 27010,
+		"RefreshRate": 5 // Info will refresh every 5 seconds
+	},
+	{ // You can list as many servers as you need
+		"ServerIP": "45.63.75.19",
+		"ServerPort": 27015,
+		"BindIP": "45.63.75.17",
+		"BindPort": 27020,
+		"RefreshRate": 5 // Info will refresh every 5 seconds
+	}
+]
