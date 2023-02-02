@@ -1,8 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -16,15 +14,18 @@ namespace GModGaurd.Classes
 
         public int RefreshRate;
 
-        public DateTime LastCache;
+        public TimeSpan LastCache = TimeSpan.MinValue;
 
         public byte[] Info;
         public byte[] Challenge;
         public byte[][] Players;
         public byte[][] Rules;
 
+
+        // https://developer.valvesoftware.com/wiki/Server_queries
         private readonly byte[] InfoRequest = new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0x54, 0x53, 0x6F, 0x75, 0x72, 0x63, 0x65, 0x20, 0x45, 0x6E, 0x67, 0x69, 0x6E, 0x65, 0x20, 0x51, 0x75, 0x65, 0x72, 0x79, 0x00 };
         private readonly byte InfoResponseHeader = 0x49;
+        private readonly byte InfoRequestChallenge = 0x41;
 
         private readonly byte[] ChallengeRequest = new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0x55, 0xFF, 0xFF, 0xFF, 0xFF }; // GetChallenge returns the same challenge for all types so we'll just request a player challenge and cache it
         private readonly byte ChallengeResponseHeader = 0x41;
@@ -41,12 +42,10 @@ namespace GModGaurd.Classes
 
         public async Task Refresh()
         {
-            LastCache = DateTime.Now;
+           
+            EndPoint ??= new IPEndPoint(Hostname, Port);
 
-            if (EndPoint == null)
-                EndPoint = new IPEndPoint(Hostname, Port);
-
-            using (UdpClient client = new UdpClient()) // SendTimeout is currently non functional on UDPClients, this works
+            using (UdpClient client = new()) // SendTimeout is currently non functional on UDPClients, this works
             {
                 try
                 {
@@ -59,11 +58,14 @@ namespace GModGaurd.Classes
                 }
                 catch (Exception ex)
                 {
-                    Info = null;
-                    Players = null;
-                    Rules = null;
-                    Challenge = null;
-
+                    if (LastCache.Seconds > 10) // Stop responding if the server fails to respond for 10 seconds
+                    {
+                        Info = null;
+                        Players = null;
+                        Rules = null;
+                        Challenge = null;
+                    }
+         
                     Console.WriteLine("Failed to cache: " + ex.Message);
                     client.Dispose();
                 }
@@ -75,11 +77,11 @@ namespace GModGaurd.Classes
             Info = await RequestInfo(client);
             Console.WriteLine("A2SCache -> RequestInfo");
 
-           Challenge = await RequestChallenge(client);
-           Console.WriteLine("A2SCache -> RequestChallenge");
+            Challenge = await RequestChallenge(client);
+            Console.WriteLine("A2SCache -> RequestChallenge");
 
-           Players = await RequestPlayers(client);
-           Console.WriteLine("A2SCache -> RequestPlayer");
+            Players = await RequestPlayers(client);
+            Console.WriteLine("A2SCache -> RequestPlayer");
 
             Rules = await RequestRules(client);
             Console.WriteLine("A2SCache -> RequestRules");
@@ -120,7 +122,34 @@ namespace GModGaurd.Classes
         private async Task<byte[]> RequestInfo(UdpClient client)
         {
             await client.SendAsync(InfoRequest, InfoRequest.Length, EndPoint);
-            return await WaitForResponse(client, InfoResponseHeader);
+
+            UdpReceiveResult result = await client.ReceiveAsync();
+
+            if (Util.IsValidSourcePacket(result.Buffer))
+            {
+                if (result.Buffer[4] == InfoResponseHeader)
+                {
+                    return result.Buffer;
+                }
+                else if (result.Buffer[4] == InfoRequestChallenge)
+                {
+                    int len = InfoRequest.Length + 4;
+                    byte[] infoRequestChallenged = new byte[len];
+
+                    for (int i = 0; i < InfoRequest.Length; i++)
+                        infoRequestChallenged[i] = InfoRequest[i];
+
+                    for (int i = 0; i < 4; i++)
+                        infoRequestChallenged[InfoRequest.Length + i] = result.Buffer[i + 5];
+
+
+                    await client.SendAsync(infoRequestChallenged, infoRequestChallenged.Length, EndPoint);
+                    return await WaitForResponse(client, InfoResponseHeader);
+
+                }
+            }
+
+            throw new Exception("Invalid source packet!");
         }
 
         private async Task<byte[]> RequestChallenge(UdpClient client)

@@ -34,8 +34,19 @@ namespace GModGaurd.Classes
 
         public void Init()
         {
-           IPAddress.TryParse(ServerIP, out _ServerIP);
-           IPAddress.TryParse(BindIP, out _BindIP);
+            if (!IPAddress.TryParse(ServerIP, out _ServerIP))
+            {
+                Console.WriteLine($"Could not parse ServerIP: {ServerIP}");
+                Console.ReadLine();
+            }
+
+
+            if (!IPAddress.TryParse(BindIP, out _BindIP))
+            {
+                Console.WriteLine($"Could not parse BindIP: {BindIP}");
+                Console.ReadLine();
+            }
+
 
             Cache = new A2SCache()
             {
@@ -58,23 +69,29 @@ namespace GModGaurd.Classes
                 HandlePacket(await ServerSocket.ReceiveAsync());
         }
 
+        private async Task A2S_ServerQueryGetChallenge(UdpReceiveResult result)
+        {
+            Console.WriteLine("A2S_SERVERQUERY_GETCHALLENGE");
+
+        }
+
         private async Task A2S_Info(UdpReceiveResult result)
         {
-            //Console.WriteLine("A2S_INFO");
+            Console.WriteLine("A2S_INFO");
             if (Cache.Info != null)
                 await ServerSocket.SendAsync(Cache.Info, Cache.Info.Length, result.RemoteEndPoint);
         }
 
         private async Task A2S_GetChallenge(UdpReceiveResult result)
         {
-            //Console.WriteLine("A2S_GETCHALLENGE");
+            Console.WriteLine("A2S_GETCHALLENGE");
             if (Cache.Challenge != null)
                 await ServerSocket.SendAsync(Cache.Challenge, Cache.Challenge.Length, result.RemoteEndPoint);
         }
 
         private async Task A2S_Players(UdpReceiveResult result)
         {
-            //Console.WriteLine("A2S_PLAYER");
+            Console.WriteLine("A2S_PLAYER");
             if (Cache.Players != null && Cache.Challenge != null && result.Buffer[5] == Cache.Challenge[5] && result.Buffer[6] == Cache.Challenge[6] && result.Buffer[7] == Cache.Challenge[7] && result.Buffer[8] == Cache.Challenge[8])
                 foreach (byte[] v in Cache.Players)
                     await ServerSocket.SendAsync(v, v.Length, result.RemoteEndPoint);
@@ -82,7 +99,7 @@ namespace GModGaurd.Classes
 
         private async Task A2S_Rules(UdpReceiveResult result)
         {
-            //Console.WriteLine("A2S_RULES");
+            Console.WriteLine("A2S_RULES");
             if (Cache.Rules != null && Cache.Challenge != null && result.Buffer[5] == Cache.Challenge[5] && result.Buffer[6] == Cache.Challenge[6] && result.Buffer[7] == Cache.Challenge[7] && result.Buffer[8] == Cache.Challenge[8])
                 foreach (byte[] v in Cache.Rules)
                     await ServerSocket.SendAsync(v, v.Length, result.RemoteEndPoint);
